@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snow Rider - Gift Edition</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <div class="score">Score: <span id="score">0</span></div>
+            <div class="gifts">Gifts: <span id="gifts">0</span></div>
+            <div class="level">Level: <span id="level">1</span></div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="startMenu" class="menu">
+            <h1>🎿 Snow Rider - Gift Edition</h1>
+            <p>Collect gifts and avoid obstacles!</p>
+            <button onclick="startGame()">START GAME</button>
+        </div>
+        
+        <div id="gameOverMenu" class="menu hidden">
+            <h1>GAME OVER</h1>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <p>Gifts Collected: <span id="finalGifts">0</span></p>
+            <button onclick="restartGame()">PLAY AGAIN</button>
+        </div>
+
+        <div class="controls">
+            <p>← → Arrow Keys or A/D to Move</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
