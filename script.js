@@ -1,29 +1,30 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-canvas.width = 400;
-canvas.height = 600;
+canvas.width = 480;
+canvas.height = 720;
 
 let gameRunning = false;
 let score = 0;
 let giftsCollected = 0;
 let level = 1;
-let gameSpeed = 3;
+let gameSpeed = 4;
+let cameraY = 0;
 
-// Player
+// Player (Skier)
 const player = {
-    x: canvas.width / 2 - 15,
-    y: canvas.height - 40,
-    width: 30,
-    height: 40,
-    speed: 6,
-    moving: false
+    x: canvas.width / 2,
+    y: canvas.height - 100,
+    width: 20,
+    height: 28,
+    speed: 7,
+    targetX: canvas.width / 2
 };
 
-// Arrays for game objects
+// Game objects
 let obstacles = [];
 let gifts = [];
-let snowflakes = [];
+let terrainLines = [];
 
 // Key states
 const keys = {};
@@ -43,10 +44,22 @@ function startGame() {
     score = 0;
     giftsCollected = 0;
     level = 1;
-    gameSpeed = 3;
+    gameSpeed = 4;
+    cameraY = 0;
     obstacles = [];
     gifts = [];
-    snowflakes = [];
+    terrainLines = [];
+    player.x = canvas.width / 2;
+    player.y = canvas.height - 100;
+    
+    // Initialize terrain
+    for (let i = 0; i < 50; i++) {
+        terrainLines.push({
+            y: i * 40,
+            width: 60 + Math.random() * 80
+        });
+    }
+    
     gameLoop();
 }
 
@@ -66,39 +79,40 @@ function gameLoop() {
 function update() {
     // Player movement
     if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-        if (player.x > 0) player.x -= player.speed;
+        player.targetX = Math.max(30, player.targetX - player.speed);
     }
     if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-        if (player.x < canvas.width - player.width) player.x += player.speed;
+        player.targetX = Math.min(canvas.width - 30, player.targetX + player.speed);
     }
+    
+    // Smooth player movement
+    player.x += (player.targetX - player.x) * 0.15;
 
     // Spawn obstacles
-    if (Math.random() < 0.02) {
+    if (Math.random() < 0.025 * (1 + level * 0.1)) {
         spawnObstacle();
     }
 
     // Spawn gifts
-    if (Math.random() < 0.015) {
+    if (Math.random() < 0.02) {
         spawnGift();
     }
 
-    // Spawn snowflakes
-    if (Math.random() < 0.3) {
-        spawnSnowflake();
-    }
+    // Update camera
+    cameraY += gameSpeed;
 
     // Update obstacles
     for (let i = obstacles.length - 1; i >= 0; i--) {
-        obstacles[i].y += gameSpeed;
+        obstacles[i].screenY = obstacles[i].y - cameraY;
 
-        // Collision detection with player
+        // Collision detection
         if (checkCollision(player, obstacles[i])) {
             endGame();
             return;
         }
 
         // Remove if off screen
-        if (obstacles[i].y > canvas.height) {
+        if (obstacles[i].screenY > canvas.height) {
             obstacles.splice(i, 1);
             score += 10;
         }
@@ -106,16 +120,15 @@ function update() {
 
     // Update gifts
     for (let i = gifts.length - 1; i >= 0; i--) {
-        gifts[i].y += gameSpeed;
-        gifts[i].rotation += 0.1;
+        gifts[i].screenY = gifts[i].y - cameraY;
+        gifts[i].rotation += 0.08;
 
-        // Collision detection with player
+        // Collision detection
         if (checkCollision(player, gifts[i])) {
             giftsCollected++;
             gifts.splice(i, 1);
             score += 50;
             
-            // Level up every 5 gifts
             if (giftsCollected % 5 === 0) {
                 level++;
                 gameSpeed += 0.5;
@@ -124,19 +137,22 @@ function update() {
         }
 
         // Remove if off screen
-        if (gifts[i].y > canvas.height) {
+        if (gifts[i].screenY > canvas.height) {
             gifts.splice(i, 1);
         }
     }
 
-    // Update snowflakes
-    for (let i = snowflakes.length - 1; i >= 0; i--) {
-        snowflakes[i].y += snowflakes[i].speed;
-        snowflakes[i].x += Math.sin(snowflakes[i].y * 0.02) * 0.5;
-
-        if (snowflakes[i].y > canvas.height) {
-            snowflakes.splice(i, 1);
-        }
+    // Update terrain
+    while (terrainLines.length > 0 && terrainLines[0].y < cameraY - 50) {
+        terrainLines.shift();
+    }
+    
+    while (terrainLines[terrainLines.length - 1].y < cameraY + canvas.height + 100) {
+        const lastLine = terrainLines[terrainLines.length - 1];
+        terrainLines.push({
+            y: lastLine.y + 40,
+            width: 60 + Math.random() * 80
+        });
     }
 
     // Update UI
@@ -146,132 +162,203 @@ function update() {
 }
 
 function spawnObstacle() {
-    const width = 40 + Math.random() * 30;
-    const x = Math.random() * (canvas.width - width);
+    const width = 50 + Math.random() * 60;
+    const x = 30 + Math.random() * (canvas.width - 60 - width);
     obstacles.push({
         x: x,
-        y: -20,
+        y: cameraY - canvas.height,
         width: width,
-        height: 20
+        height: 30,
+        type: Math.random() > 0.5 ? 'tree' : 'rock',
+        screenY: 0
     });
 }
 
 function spawnGift() {
-    const x = Math.random() * (canvas.width - 30);
+    const x = 40 + Math.random() * (canvas.width - 80);
     gifts.push({
         x: x,
-        y: -30,
-        width: 30,
-        height: 30,
-        rotation: 0
-    });
-}
-
-function spawnSnowflake() {
-    snowflakes.push({
-        x: Math.random() * canvas.width,
-        y: -10,
-        size: 2 + Math.random() * 3,
-        speed: 0.5 + Math.random() * 1.5
+        y: cameraY - canvas.height,
+        width: 28,
+        height: 28,
+        rotation: 0,
+        screenY: 0
     });
 }
 
 function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width &&
            rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &&
-           rect1.y + rect1.height > rect2.y;
+           rect1.y < rect2.screenY + rect2.height &&
+           rect1.y + rect1.height > rect2.screenY;
 }
 
 function endGame() {
     gameRunning = false;
     document.getElementById('finalScore').textContent = score;
     document.getElementById('finalGifts').textContent = giftsCollected;
+    document.getElementById('finalLevel').textContent = level;
     document.getElementById('gameOverMenu').classList.remove('hidden');
 }
 
 function draw() {
-    // Background
-    ctx.fillStyle = '#e0f6ff';
+    // Sky gradient
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    skyGradient.addColorStop(0, '#87CEEB');
+    skyGradient.addColorStop(1, '#E0F6FF');
+    ctx.fillStyle = skyGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Snow pattern
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    for (let i = 0; i < 5; i++) {
-        ctx.fillRect(i * 80, 0, 40, canvas.height);
+    // Draw snow track lanes
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 3, 0);
+    ctx.lineTo(canvas.width / 3, canvas.height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo((canvas.width * 2) / 3, 0);
+    ctx.lineTo((canvas.width * 2) / 3, canvas.height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw terrain depth (white lines)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 2;
+    for (let line of terrainLines) {
+        const screenY = line.y - cameraY;
+        if (screenY >= -50 && screenY <= canvas.height + 50) {
+            const lineWidth = line.width * (1 - (line.y - cameraY) / (canvas.height * 1.5));
+            ctx.beginPath();
+            ctx.moveTo((canvas.width - lineWidth) / 2, screenY);
+            ctx.lineTo((canvas.width + lineWidth) / 2, screenY);
+            ctx.stroke();
+        }
     }
 
-    // Draw snowflakes
-    ctx.fillStyle = 'white';
-    for (let flake of snowflakes) {
-        ctx.beginPath();
-        ctx.arc(flake.x, flake.y, flake.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // Draw obstacles (trees/rocks)
-    ctx.fillStyle = '#8B4513';
+    // Draw obstacles
     for (let obstacle of obstacles) {
-        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-        // Add a pattern
-        ctx.fillStyle = '#654321';
-        ctx.fillRect(obstacle.x + 5, obstacle.y + 5, obstacle.width - 10, obstacle.height - 10);
-        ctx.fillStyle = '#8B4513';
+        if (obstacle.screenY >= -50 && obstacle.screenY <= canvas.height) {
+            if (obstacle.type === 'tree') {
+                drawTree(obstacle.x, obstacle.screenY, obstacle.width, obstacle.height);
+            } else {
+                drawRock(obstacle.x, obstacle.screenY, obstacle.width, obstacle.height);
+            }
+        }
     }
 
     // Draw gifts
     for (let gift of gifts) {
-        ctx.save();
-        ctx.translate(gift.x + gift.width / 2, gift.y + gift.height / 2);
-        ctx.rotate(gift.rotation);
-        
-        // Gift box
-        ctx.fillStyle = '#FF1493';
-        ctx.fillRect(-gift.width / 2, -gift.height / 2, gift.width, gift.height);
-        
-        // Gift ribbon
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(-gift.width / 2 + 2, -3, gift.width - 4, 6);
-        ctx.fillRect(-3, -gift.height / 2 + 2, 6, gift.height - 4);
-        
-        ctx.restore();
+        if (gift.screenY >= -50 && gift.screenY <= canvas.height) {
+            drawGift(gift.x, gift.screenY, gift.width, gift.height, gift.rotation);
+        }
     }
 
     // Draw player (skier)
-    ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-    
-    // Player body
-    ctx.fillStyle = '#FF6347';
-    ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
-    
-    // Player head
+    drawSkier(player.x, player.y, player.width, player.height);
+}
+
+function drawSkier(x, y, w, h) {
+    // Skier body
+    ctx.fillStyle = '#FF1493';
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+
+    // Head
     ctx.fillStyle = '#FDBCB4';
     ctx.beginPath();
-    ctx.arc(0, -player.height / 2 - 5, 8, 0, Math.PI * 2);
+    ctx.arc(x, y - h / 2 - 8, 8, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Eyes
-    ctx.fillStyle = 'black';
+    ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(-4, -player.height / 2 - 8, 2, 0, Math.PI * 2);
+    ctx.arc(x - 3, y - h / 2 - 10, 1.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(4, -player.height / 2 - 8, 2, 0, Math.PI * 2);
+    ctx.arc(x + 3, y - h / 2 - 10, 1.5, 0, Math.PI * 2);
     ctx.fill();
-    
+
     // Skis
     ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-8, player.height / 2);
-    ctx.lineTo(-8, player.height / 2 + 15);
+    ctx.moveTo(x - 6, y + h / 2);
+    ctx.lineTo(x - 6, y + h / 2 + 12);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(8, player.height / 2);
-    ctx.lineTo(8, player.height / 2 + 15);
+    ctx.moveTo(x + 6, y + h / 2);
+    ctx.lineTo(x + 6, y + h / 2 + 12);
     ctx.stroke();
-    
+}
+
+function drawTree(x, y, w, h) {
+    // Trunk
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(x + w / 3, y + h / 2, w / 3, h * 1.5);
+
+    // Foliage
+    ctx.fillStyle = '#228B22';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w / 2, y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Highlight
+    ctx.fillStyle = '#32CD32';
+    ctx.beginPath();
+    ctx.moveTo(x + w / 2, y + 2);
+    ctx.lineTo(x + w * 0.75, y + h * 0.6);
+    ctx.lineTo(x + w / 2, y + h - 2);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawRock(x, y, w, h) {
+    ctx.fillStyle = '#808080';
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + h / 2, w / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Shadow
+    ctx.fillStyle = '#505050';
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h / 2 + 3, w / 2.5, h / 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawGift(x, y, w, h, rotation) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.rotate(rotation);
+
+    // Gift box
+    ctx.fillStyle = '#FF1493';
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+
+    // Border
+    ctx.strokeStyle = '#FF69B4';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+    // Ribbon (horizontal)
+    ctx.fillStyle = '#FFD700';
+    ctx.fillRect(-w / 2, -3, w, 6);
+
+    // Ribbon (vertical)
+    ctx.fillRect(-3, -h / 2, 6, h);
+
+    // Bow
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(-5, -h / 2 - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(5, -h / 2 - 3, 3, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
 }
 
